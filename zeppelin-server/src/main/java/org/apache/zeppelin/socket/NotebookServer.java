@@ -352,6 +352,9 @@ public class NotebookServer extends WebSocketServlet
         case RUN_PARAGRAPH:
           runParagraph(conn, messagereceived);
           break;
+        case DEBUG_PARAGRAPH:
+          throw new Exception("debug not implemented");
+//          break;
         case PARAGRAPH_EXECUTED_BY_SPELL:
           broadcastSpellExecution(conn, messagereceived);
           break;

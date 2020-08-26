@@ -207,6 +207,26 @@ function WebsocketMessageService($rootScope, websocketEvents) {
       });
     },
 
+    debugParagraph: function(paragraphId, paragraphTitle, paragraphData, paragraphConfig, paragraphParams) {
+      // short circuit update paragraph status for immediate visual feedback without waiting for server response
+      $rootScope.$broadcast('updateStatus', {
+        id: paragraphId,
+        status: 'PENDING',
+      });
+
+      // send message to server
+      websocketEvents.sendNewEvent({
+        op: 'DEBUG_PARAGRAPH',
+        data: {
+          id: paragraphId,
+          title: paragraphTitle,
+          paragraph: paragraphData,
+          config: paragraphConfig,
+          params: paragraphParams,
+        },
+      });
+    },
+
     runAllParagraphs: function(noteId, paragraphs) {
       // short circuit update paragraph status for immediate visual feedback without waiting for server response
       paragraphs.forEach((p) => {

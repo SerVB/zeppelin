@@ -405,6 +405,11 @@ function ParagraphCtrl($scope, $rootScope, $route, $window, $routeParams, $locat
       paragraphText, $scope.paragraph.config, $scope.paragraph.settings.params);
   };
 
+  $scope.debugParagraphUsingBackendInterpreter = function(paragraphText) {
+    websocketMsgSrv.debugParagraph($scope.paragraph.id, $scope.paragraph.title,
+      paragraphText, $scope.paragraph.config, $scope.paragraph.settings.params);
+  };
+
   $scope.bindBeforeUnload = function() {
     angular.element(window).off('beforeunload');
 
@@ -482,6 +487,38 @@ function ParagraphCtrl($scope, $rootScope, $route, $window, $routeParams, $locat
     editorSetting.isOutputHidden = $scope.paragraph.config.editorSetting.editOnDblClick;
   };
 
+  /**
+   * @param paragraphText to be parsed
+   * @param digestRequired true if calling `$digest` is required
+   * @param propagated true if update request is sent from other client
+   */
+  $scope.debugParagraph = function(paragraphText, digestRequired, propagated) {
+    if (!paragraphText || $scope.isRunning($scope.paragraph)) {
+      return;
+    }
+
+    const magic = SpellResult.extractMagic(paragraphText);
+
+    if (heliumService.getSpellByMagic(magic)) {
+      $scope.runParagraphUsingSpell(paragraphText, magic, digestRequired, propagated);
+    } else {
+      $scope.debugParagraphUsingBackendInterpreter(paragraphText);
+    }
+
+    $scope.originalText = angular.copy(paragraphText);
+    $scope.dirtyText = undefined;
+
+    if ($scope.paragraph.config.editorSetting.editOnDblClick) {
+      closeEditorAndOpenTable($scope.paragraph);
+    } else if (editorSetting.isOutputHidden &&
+      !$scope.paragraph.config.editorSetting.editOnDblClick) {
+      // %md/%angular repl make output to be hidden by default after running
+      // so should open output if repl changed from %md/%angular to another
+      openEditorAndOpenTable($scope.paragraph);
+    }
+    editorSetting.isOutputHidden = $scope.paragraph.config.editorSetting.editOnDblClick;
+  };
+
   $scope.runParagraphFromShortcut = function(paragraphText) {
     // passing `digestRequired` as true to update view immediately
     // without this, results cannot be rendered in view more than once
@@ -494,6 +531,14 @@ function ParagraphCtrl($scope, $rootScope, $route, $window, $routeParams, $locat
     }
     // we come here from the view, so we don't need to call `$digest()`
     $scope.runParagraph($scope.getEditorValue(), false, false);
+  };
+
+  $scope.debugParagraphFromButton = function() {
+    if ($scope.isNoteRunning) {
+      return;
+    }
+    // we come here from the view, so we don't need to call `$digest()`
+    $scope.debugParagraph($scope.getEditorValue(), false, false);
   };
 
   $scope.runAllToThis = function(paragraph) {
