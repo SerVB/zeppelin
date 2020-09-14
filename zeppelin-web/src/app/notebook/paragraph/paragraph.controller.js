@@ -406,8 +406,27 @@ function ParagraphCtrl($scope, $rootScope, $route, $window, $routeParams, $locat
   };
 
   $scope.debugParagraphUsingBackendInterpreter = function(paragraphText) {
-    websocketMsgSrv.debugParagraph($scope.paragraph.id, $scope.paragraph.title,
-      paragraphText, $scope.paragraph.config, $scope.paragraph.settings.params);
+    const opAndParams = window.prompt(
+      'Enter debug command and parameters.\n' +
+      'Examples:\n' +
+      'PARAGRAPH_DEBUG_START\n' +
+      'PARAGRAPH_DEBUG_CANCEL\n' +
+      'PARAGRAPH_SET_BREAKPOINTS 1,3\n' +
+      'PARAGRAPH_DEBUG_NAVIGATE CONTINUE'
+    );
+    const op = opAndParams.split(' ')[0];
+    let params = null;
+    if (opAndParams.split(' ').length > 1) {
+      params = opAndParams.split(' ')[1];
+    }
+
+    const paragraphParams = {
+      // ...$scope.paragraph.settings.params,
+      debug: params,
+    };
+
+    websocketMsgSrv.debugParagraph(op, $scope.paragraph.id, $scope.paragraph.title,
+      paragraphText, $scope.paragraph.config, paragraphParams);
   };
 
   $scope.bindBeforeUnload = function() {

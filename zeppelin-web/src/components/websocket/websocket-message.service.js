@@ -207,7 +207,7 @@ function WebsocketMessageService($rootScope, websocketEvents) {
       });
     },
 
-    debugParagraph: function(paragraphId, paragraphTitle, paragraphData, paragraphConfig, paragraphParams) {
+    debugParagraph: function(op, paragraphId, paragraphTitle, paragraphData, paragraphConfig, paragraphParams) {
       // short circuit update paragraph status for immediate visual feedback without waiting for server response
       $rootScope.$broadcast('updateStatus', {
         id: paragraphId,
@@ -216,7 +216,7 @@ function WebsocketMessageService($rootScope, websocketEvents) {
 
       // send message to server
       websocketEvents.sendNewEvent({
-        op: 'DEBUG_PARAGRAPH',
+        op: op,
         data: {
           id: paragraphId,
           title: paragraphTitle,

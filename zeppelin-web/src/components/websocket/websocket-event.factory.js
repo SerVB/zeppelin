@@ -68,6 +68,19 @@ function WebsocketEventFactory($rootScope, $websocket, $location, baseUrlSrv, sa
     const msgIdSeqReceived = msgId ? parseInt(msgId.split('-')[1]) : undefined;
     const isResponseForRequestFromThisClient = uniqueClientId === uniqueClientId;
 
+    if (op === 'PARAGRAPH_DEBUG_FINISH') {
+      alert(`Debug finished for paragraph: ${data.id}`);
+      return;
+    }
+    if (op === 'PARAGRAPH_LINE_HIT') {
+      alert(`Stopped at line ${data.line} for paragraph: ${data.id}`);
+      return;
+    }
+    if (op === 'PARAGRAPH_VARIABLES') {
+      alert(`Visible variables ${data.vars} for paragraph: ${data.id}`);
+      return;
+    }
+
     if (op === 'NOTE') {
       $rootScope.$broadcast('setNoteContent', data.note);
     } else if (op === 'NEW_NOTE') {

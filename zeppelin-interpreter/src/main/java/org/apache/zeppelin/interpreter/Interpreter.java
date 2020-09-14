@@ -32,12 +32,8 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
 import java.net.URL;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -120,6 +116,34 @@ public abstract class Interpreter {
   public abstract InterpreterResult interpret(String st,
                                               InterpreterContext context)
       throws InterpreterException;
+
+  public interface DebugCallback {
+
+    void debuggingStopped();
+    void stoppedAtLine(int lineNumber);
+    void variablesList(List<String> variables);
+    void addText(String s);
+  }
+
+  public static class DebugContext {
+
+    public List<Integer> breakpoints = new ArrayList<>();
+
+    public ConcurrentLinkedQueue<Actions> actions = new ConcurrentLinkedQueue<>();
+
+    public enum Actions {
+      UPDATE_BREAKPOINTS,
+      STOP,
+      CONTINUE,
+      STEP_OVER,
+      STEP_IN,
+      STEP_OUT,
+    }
+  }
+
+  public void debug(String st, DebugCallback debugCallback, DebugContext debugContext) {
+    throw new UnsupportedOperationException("DebugNotImplementedException");
+  }
 
   /**
    * Optionally implement the canceling routine to abort interpret() method

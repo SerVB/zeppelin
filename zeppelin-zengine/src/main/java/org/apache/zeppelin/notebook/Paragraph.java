@@ -19,15 +19,7 @@ package org.apache.zeppelin.notebook;
 
 import java.io.IOException;
 import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -241,7 +233,192 @@ public class Paragraph extends JobWithProgressPoller<InterpreterResult> implemen
     return enabled == null || enabled.booleanValue();
   }
 
+  public static class KotlinDebugDemo extends Interpreter {
+
+    public KotlinDebugDemo() {
+      super(new Properties());
+    }
+
+    @Override
+    public void open() throws InterpreterException {
+    }
+
+    @Override
+    public void close() throws InterpreterException {
+    }
+
+    @Override
+    public InterpreterResult interpret(String st, InterpreterContext context) throws InterpreterException {
+      return null;
+    }
+
+    @Override
+    public void cancel(InterpreterContext context) throws InterpreterException {
+
+    }
+
+    @Override
+    public FormType getFormType() throws InterpreterException {
+      return null;
+    }
+
+    @Override
+    public int getProgress(InterpreterContext context) throws InterpreterException {
+      return 0;
+    }
+
+    @Override
+    public void debug(String st, DebugCallback debugCallback, DebugContext debugContext) {
+      new Thread() {
+
+        private int currentLine = 5;
+        private boolean waitingNavigation = false;
+
+        @Override
+        public void run() {
+          while (currentLine != 8) {
+            DebugContext.Actions a = debugContext.actions.peek();
+            if (a == DebugContext.Actions.STOP) {
+              return;
+            }
+            if (waitingNavigation) {
+              debugCallback.stoppedAtLine(currentLine);
+              switch (currentLine) {
+                case 5:
+                case 2:
+                  debugCallback.variablesList(Collections.emptyList());
+                  break;
+                case 3:
+                  debugCallback.variablesList(Collections.singletonList("answer\tInt\t42"));
+                  break;
+                case 6:
+                  debugCallback.variablesList(Collections.singletonList("a\tInt\t42"));
+                  break;
+                case 7:
+                  debugCallback.variablesList(Arrays.asList("a\tInt\t42", "b\tInt\t0"));
+                  break;
+              }
+
+              boolean done = false;
+              while (!done) {
+                DebugContext.Actions b = debugContext.actions.poll();
+
+                if (b == null) {
+                  try {
+                    Thread.sleep(100);
+                  } catch (InterruptedException e) {
+
+                  }
+                  continue;
+                }
+
+                if (b == DebugContext.Actions.STOP) {
+                  return;
+                }
+
+                if (b == DebugContext.Actions.UPDATE_BREAKPOINTS) {
+                  continue;
+                }
+
+                switch (currentLine) {
+                  case 5:
+                    switch (b) {
+                      case CONTINUE:
+                        waitingNavigation = false;
+                        currentLine = 2;
+                        break;
+                      case STEP_IN:
+                        currentLine = 2;
+                        break;
+                      case STEP_OUT:
+                        currentLine = 8;
+                        break;
+                      default:
+                        currentLine = 6;
+                    }
+                    break;
+                  case 2:
+                    switch (b) {
+                      case CONTINUE:
+                        waitingNavigation = false;
+                        currentLine = 3;
+                        break;
+                      case STEP_IN:
+                      case STEP_OVER:
+                        currentLine = 3;
+                        break;
+                      default:
+                        currentLine = 6;
+                    }
+                    break;
+                  case 3:
+                    switch (b) {
+                      case CONTINUE:
+                        waitingNavigation = false;
+                        currentLine = 6;
+                        break;
+                      default:
+                        currentLine = 6;
+                    }
+                    break;
+                  case 6:
+                    switch (b) {
+                      case CONTINUE:
+                        waitingNavigation = false;
+                        currentLine = 7;
+                        break;
+                      case STEP_IN:
+                      case STEP_OVER:
+                        currentLine = 7;
+                        break;
+                      default:
+                        currentLine = 8;
+                    }
+                    break;
+                  case 7:
+                    waitingNavigation = false;
+                    currentLine = 8;
+                    debugCallback.addText("Answer is 42, the result is 0\n");
+                    break;
+                }
+
+                done = true;
+              }
+            } else {
+              if (debugContext.breakpoints.contains(currentLine)) {
+                waitingNavigation = true;
+              } else {
+                switch (currentLine) {
+                  case 5:
+                    currentLine = 2;
+                    break;
+                  case 2:
+                    currentLine = 3;
+                    break;
+                  case 3:
+                    currentLine = 6;
+                    break;
+                  case 6:
+                    currentLine = 7;
+                    break;
+                  case 7:
+                    currentLine = 8;
+                    debugCallback.addText("Answer is 42, the result is 0\n");
+                    break;
+                }
+              }
+            }
+          }
+        }
+      }.start();
+    }
+  }
+
   public Interpreter getBindedInterpreter() throws InterpreterNotFoundException {
+    if (text.startsWith("%kotlin-debug-demo")) {
+      return new KotlinDebugDemo();
+    }
+
     ExecutionContext executionContext = new ExecutionContextBuilder()
             .setUser(user)
             .setNoteId(note.getId())

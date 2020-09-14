@@ -54,6 +54,7 @@ import org.apache.zeppelin.display.GUI;
 import org.apache.zeppelin.display.Input;
 import org.apache.zeppelin.helium.ApplicationEventListener;
 import org.apache.zeppelin.helium.HeliumPackage;
+import org.apache.zeppelin.interpreter.Interpreter;
 import org.apache.zeppelin.interpreter.InterpreterGroup;
 import org.apache.zeppelin.interpreter.InterpreterResult;
 import org.apache.zeppelin.interpreter.InterpreterSetting;
@@ -352,9 +353,12 @@ public class NotebookServer extends WebSocketServlet
         case RUN_PARAGRAPH:
           runParagraph(conn, messagereceived);
           break;
-        case DEBUG_PARAGRAPH:
-          throw new Exception("debug not implemented");
-//          break;
+        case PARAGRAPH_DEBUG_START:
+        case PARAGRAPH_DEBUG_CANCEL:
+        case PARAGRAPH_SET_BREAKPOINTS:
+        case PARAGRAPH_DEBUG_NAVIGATE:
+          debugParagraph(conn, messagereceived);
+          break;
         case PARAGRAPH_EXECUTED_BY_SPELL:
           broadcastSpellExecution(conn, messagereceived);
           break;
@@ -1541,6 +1545,66 @@ public class NotebookServer extends WebSocketServlet
             }
           }
         });
+  }
+
+  private void debugParagraph(NotebookSocket conn,
+                            Message fromMessage) throws IOException {
+    String paragraphId = (String) fromMessage.get("id");
+    String noteId = getConnectionManager().getAssociatedNoteId(conn);
+    String text = (String) fromMessage.get("paragraph");
+    String title = (String) fromMessage.get("title");
+    Map<String, Object> params = (Map<String, Object>) fromMessage.get("params");
+    Map<String, Object> config = (Map<String, Object>) fromMessage.get("config");
+    try {
+      getNotebookService().debugParagraph(fromMessage.op, noteId, paragraphId, title, text, params, config,
+              false, false, getServiceContext(fromMessage),
+              new WebSocketServiceCallback<Paragraph>(conn) {
+                @Override
+                public void onSuccess(Paragraph p, ServiceContext context) throws IOException {
+                  super.onSuccess(p, context);
+                  if (p.getNote().isPersonalizedMode()) {
+                    Paragraph p2 = p.getNote().clearPersonalizedParagraphOutput(paragraphId,
+                            context.getAutheInfo().getUser());
+                    getConnectionManager().unicastParagraph(p.getNote(), p2, context.getAutheInfo().getUser(), fromMessage.msgId);
+                  }
+
+                  // if it's the last paragraph and not empty, let's add a new one
+                  boolean isTheLastParagraph = p.getNote().isLastParagraph(paragraphId);
+                  if (!(Strings.isNullOrEmpty(p.getText()) ||
+                          Strings.isNullOrEmpty(p.getScriptText())) &&
+                          isTheLastParagraph) {
+                    Paragraph newPara = p.getNote().addNewParagraph(p.getAuthenticationInfo());
+                    broadcastNewParagraph(p.getNote(), newPara);
+                  }
+                }
+              },
+              new Interpreter.DebugCallback() {
+                @Override
+                public void debuggingStopped() {
+                  getConnectionManager().broadcast(new Message(OP.PARAGRAPH_DEBUG_FINISH).put("id", paragraphId));
+                }
+
+                @Override
+                public void stoppedAtLine(int lineNumber) {
+                  getConnectionManager().broadcast(new Message(OP.PARAGRAPH_LINE_HIT).put("id", paragraphId).put("line", lineNumber));
+                }
+
+                @Override
+                public void variablesList(List<String> variables) {
+                  getConnectionManager().broadcast(new Message(OP.PARAGRAPH_VARIABLES).put("id", paragraphId).put("vars", variables));
+                }
+
+                @Override
+                public void addText(String s) {
+                  getConnectionManager().broadcast(new Message(OP.PARAGRAPH_APPEND_OUTPUT).put("noteId", noteId)
+                          .put("paragraphId", paragraphId).put("index", 0).put("data", s)
+                  );
+                }
+              }
+      );
+    } catch (Throwable t) {
+      log("error on debug", t);
+    }
   }
 
   private void sendAllConfigurations(NotebookSocket conn,

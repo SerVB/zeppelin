@@ -27,19 +27,16 @@ import com.google.gson.reflect.TypeToken;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import javax.inject.Inject;
 
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.zeppelin.conf.ZeppelinConfiguration;
 import org.apache.zeppelin.display.AngularObject;
 import org.apache.zeppelin.display.AngularObjectRegistry;
+import org.apache.zeppelin.interpreter.Interpreter;
 import org.apache.zeppelin.interpreter.InterpreterResult;
 import org.apache.zeppelin.interpreter.InterpreterSetting;
 import org.apache.zeppelin.interpreter.thrift.InterpreterCompletion;
@@ -57,6 +54,7 @@ import org.apache.zeppelin.rest.exception.ForbiddenException;
 import org.apache.zeppelin.rest.exception.NoteNotFoundException;
 import org.apache.zeppelin.rest.exception.ParagraphNotFoundException;
 import org.apache.zeppelin.scheduler.Job;
+import org.apache.zeppelin.socket.NotebookServer;
 import org.apache.zeppelin.user.AuthenticationInfo;
 import org.bitbucket.cowwoc.diffmatchpatch.DiffMatchPatch;
 import org.joda.time.DateTime;
@@ -363,6 +361,55 @@ public class NotebookService {
       // don't call callback.onFailure, we just need to display the error message
       // in paragraph result section instead of pop up the error window.
       return false;
+    }
+  }
+
+  private final Interpreter.DebugContext debugContext = new Interpreter.DebugContext();
+
+  public void debugParagraph(Message.OP op,
+                             String noteId,
+                             String paragraphId,
+                             String title,
+                             String text,
+                             Map<String, Object> params,
+                             Map<String, Object> config,
+                             boolean failIfDisabled,
+                             boolean blocking,
+                             ServiceContext context,
+                             ServiceCallback<Paragraph> callback,
+                             Interpreter.DebugCallback debugCallback) throws Exception {
+
+    LOGGER.info("Start to run paragraph: " + paragraphId + " of note: " + noteId);
+
+    switch (op) {
+      case PARAGRAPH_DEBUG_START:
+        Note note = notebook.getNote(noteId);
+        Paragraph p = note.getParagraph(paragraphId);
+        p.setText(text);
+        p.setTitle(title);
+        p.setAuthenticationInfo(context.getAutheInfo());
+        debugContext.actions.clear();
+        p.getBindedInterpreter().debug(p.getIntpText(), debugCallback, debugContext);
+        break;
+      case PARAGRAPH_DEBUG_CANCEL:
+        debugContext.actions.add(Interpreter.DebugContext.Actions.STOP);
+        break;
+      case PARAGRAPH_SET_BREAKPOINTS:
+        debugContext.breakpoints = Arrays.stream(((String) params.get("debug"))
+                .split(","))
+                .map(Integer::valueOf)
+                .collect(Collectors.toList());
+        debugContext.actions.add(Interpreter.DebugContext.Actions.UPDATE_BREAKPOINTS);
+        break;
+      default: //case PARAGRAPH_DEBUG_NAVIGATE:
+        Interpreter.DebugContext.Actions a;
+        switch ((String) params.get("debug")) {
+          case "CONTINUE": a = Interpreter.DebugContext.Actions.CONTINUE; break;
+          case "STEP_OVER": a = Interpreter.DebugContext.Actions.STEP_OVER; break;
+          case "STEP_IN": a = Interpreter.DebugContext.Actions.STEP_IN; break;
+          default: a = Interpreter.DebugContext.Actions.STEP_OUT; break;
+        }
+        debugContext.actions.add(a);
     }
   }
 
